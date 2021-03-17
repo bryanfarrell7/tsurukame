@@ -1,4 +1,4 @@
-// Copyright 2020 David Sansome
+// Copyright 2021 David Sansome
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,9 +23,8 @@ protocol AudioDelegate: NSObject {
 @objcMembers
 class Audio: NSObject {
   // Returns the local directory that contains cached audio files.
-  class func cacheDirectoryPath() -> String {
-    let paths = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)
-    return "\(paths[0])/audio"
+  static var cacheDirectoryPath: String {
+    "\(NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0])/audio"
   }
 
   private let kURLPattern = "https://cdn.wanikani.com/audios/%d-subject-%d.mp3"
@@ -77,14 +76,14 @@ class Audio: NSObject {
     }
   }
 
-  func play(subjectID: Int, delegate: AudioDelegate?) {
-    guard let subject = services.dataLoader.load(subjectID: subjectID) else {
+  func play(subjectID: Int32, delegate: AudioDelegate?) {
+    guard let subject = services.localCachingClient.getSubject(id: subjectID) else {
       return
     }
     let audioID = subject.randomAudioID()
 
     // Is the audio available offline?
-    let filename = String(format: kOfflineFilePattern, Audio.cacheDirectoryPath(), audioID)
+    let filename = String(format: kOfflineFilePattern, Audio.cacheDirectoryPath, audioID)
     if FileManager.default.fileExists(atPath: filename) {
       play(url: URL(fileURLWithPath: filename), delegate: delegate)
       return
@@ -165,7 +164,7 @@ class Audio: NSObject {
     ac.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
 
     let vc = UIApplication.shared.keyWindow!.rootViewController!
-    vc.present(vc, animated: true, completion: nil)
+    vc.present(ac, animated: true, completion: nil)
   }
 
   @objc private func itemFinishedPlaying() {

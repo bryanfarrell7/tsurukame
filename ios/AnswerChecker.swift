@@ -1,4 +1,4 @@
-// Copyright 2020 David Sansome
+// Copyright 2021 David Sansome
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,17 +29,15 @@ import Foundation
     .Scalar(UInt32(0x3040))! ..< Unicode.Scalar(UInt32(0x309D))!)
   @objc static let kAllKanaCharacterSet = CharacterSet(charactersIn: Unicode
     .Scalar(UInt32(0x3040))! ..< Unicode.Scalar(UInt32(0x3100))!)
-  @objc static let kJapaneseCharacterSet = kAllKanaCharacterSet.union(
-    CharacterSet(charactersIn: Unicode.Scalar(UInt32(0x3400))! ..< Unicode.Scalar(UInt32(0x4DC0))!))
-    .union(
-      CharacterSet(charactersIn: Unicode.Scalar(UInt32(0x4E00))! ..< Unicode
-        .Scalar(UInt32(0xA000))!))
-    .union(
-      CharacterSet(charactersIn: Unicode.Scalar(UInt32(0xF900))! ..< Unicode
-        .Scalar(UInt32(0xFB00))!))
-    .union(
-      CharacterSet(charactersIn: Unicode.Scalar(UInt32(0xFF66))! ..< Unicode
-        .Scalar(UInt32(0xFFA0))!))
+  @objc static let kJapaneseCharacterSet = kAllKanaCharacterSet
+    .union(CharacterSet(charactersIn: Unicode.Scalar(UInt32(0x3400))! ..<
+        Unicode.Scalar(UInt32(0x4DC0))!))
+    .union(CharacterSet(charactersIn: Unicode.Scalar(UInt32(0x4E00))! ..<
+        Unicode.Scalar(UInt32(0xA000))!))
+    .union(CharacterSet(charactersIn: Unicode.Scalar(UInt32(0xF900))! ..<
+        Unicode.Scalar(UInt32(0xFB00))!))
+    .union(CharacterSet(charactersIn: Unicode.Scalar(UInt32(0xFF66))! ..<
+        Unicode.Scalar(UInt32(0xFFA0))!))
 
   private class func containsAscii(_ s: String) -> Bool {
     s.rangeOfCharacter(from: kAsciiCharacterSet) != nil
@@ -106,8 +104,8 @@ import Foundation
     return text.applyingTransform(StringTransform.hiraganaToKatakana, reverse: true)!
   }
 
-  @objc class func normalizedString(_ text: String, taskType: TKMTaskType,
-                                    alphabet: TKMAlphabet = TKMAlphabet.hiragana) -> String {
+  class func normalizedString(_ text: String, taskType: TaskType,
+                              alphabet: TKMAlphabet = TKMAlphabet.hiragana) -> String {
     var s =
       text.trimmingCharacters(in: CharacterSet.whitespaces)
         .lowercased()
@@ -115,18 +113,22 @@ import Foundation
         .replacingOccurrences(of: ".", with: "")
         .replacingOccurrences(of: "'", with: "")
         .replacingOccurrences(of: "/", with: "")
-    if taskType == TKMTaskType.reading {
+    if taskType == .reading {
       s = s.replacingOccurrences(of: "n", with: alphabet == TKMAlphabet.hiragana ? "ん" : "ン")
+
+      // Gboard Godan layout uses "ｎ" or Unicode code point U+FF4E.
+      s = s.replacingOccurrences(of: "ｎ", with: alphabet == TKMAlphabet.hiragana ? "ん" : "ン")
+
       s = s.replacingOccurrences(of: " ", with: "")
     }
     return s
   }
 
-  @objc class func checkAnswer(_ answer: String,
-                               subject: TKMSubject,
-                               studyMaterials: TKMStudyMaterials?,
-                               taskType: TKMTaskType,
-                               dataLoader: DataLoader) -> AnswerCheckerResult {
+  class func checkAnswer(_ answer: String,
+                         subject: TKMSubject,
+                         studyMaterials: TKMStudyMaterials?,
+                         taskType: TaskType,
+                         localCachingClient: LocalCachingClient) -> AnswerCheckerResult {
     switch taskType {
     case .reading:
       let hiraganaText = convertKatakanaToHiragana(answer)
@@ -146,13 +148,13 @@ import Foundation
         }
       }
       if subject.hasVocabulary, subject.japanese.count == 1,
-        subject.componentSubjectIdsArray_Count == 1 {
+        subject.componentSubjectIds.count == 1 {
         // If the vocabulary is made up of only one Kanji, check whether the user wrote the Kanji
         // reading instead of the vocabulary reading.
-        if let kanji = dataLoader
-          .load(subjectID: Int(subject.componentSubjectIdsArray!.value(at: 0))) {
+        if let kanji = localCachingClient
+          .getSubject(id: subject.componentSubjectIds[0]) {
           let result = checkAnswer(answer, subject: kanji, studyMaterials: nil, taskType: taskType,
-                                   dataLoader: dataLoader)
+                                   localCachingClient: localCachingClient)
           if result == .Precise {
             return .OtherKanjiReading
           }
@@ -168,7 +170,7 @@ import Foundation
       }
 
       // Check blacklisted meanings first.  If the answer matches one exactly, it's incorrect.
-      for meaning in subject.meaningsArray! as! [TKMMeaning] {
+      for meaning in subject.meanings {
         if meaning.type == .blacklist {
           if normalizedString(meaning.meaning, taskType: taskType) == answer {
             return .Incorrect
@@ -179,10 +181,10 @@ import Foundation
       // Gather all possible meanings from synonyms and from the subject itself.
       var meaningTexts = [String]()
       if let studyMaterials = studyMaterials {
-        meaningTexts.append(contentsOf: studyMaterials.meaningSynonymsArray as! [String])
+        meaningTexts.append(contentsOf: studyMaterials.meaningSynonyms)
       }
 
-      for meaning in subject.meaningsArray! as! [TKMMeaning] {
+      for meaning in subject.meanings {
         if meaning.type != .blacklist {
           meaningTexts.append(meaning.meaning)
         }
@@ -201,11 +203,6 @@ import Foundation
           return .Imprecise
         }
       }
-
-    case ._Max:
-      fallthrough
-    @unknown default:
-      fatalError()
     }
 
     return .Incorrect

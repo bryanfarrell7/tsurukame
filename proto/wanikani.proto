@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto2";
-
+syntax = "proto3";
+option go_package = "github.com/davidsansome/tsurukame;proto";
 option objc_class_prefix = "TKM";
+option swift_prefix = "TKM";
 
 package proto;
 
 message Meaning {
   enum Type {
+    UNKNOWN = 0;
     PRIMARY = 1;
     SECONDARY = 2;
 
@@ -44,6 +46,7 @@ message Reading {
 
   // Type is only set for Kanji readings - not for Vocabulary.
   enum Type {
+    UNKNOWN = 0;
     ONYOMI = 1;
     KUNYOMI = 2;
     NANORI = 3;
@@ -57,13 +60,7 @@ message Radical {
   optional string deprecated_mnemonic = 5;
   optional bool has_character_image_file = 3;
 
-  repeated FormattedText formatted_mnemonic = 4;
-  repeated FormattedText formatted_deprecated_mnemonic = 6;
-}
-
-message VisuallySimilarKanji {
-  optional int32 id = 1;
-  optional int32 score = 2;  // From 0 to 1000.
+  reserved 4, 6;
 }
 
 message Kanji {
@@ -72,20 +69,16 @@ message Kanji {
   optional string reading_mnemonic = 3;
   optional string reading_hint = 4;
 
-  repeated FormattedText formatted_meaning_mnemonic = 5;
-  repeated FormattedText formatted_meaning_hint = 6;
-  repeated FormattedText formatted_reading_mnemonic = 7;
-  repeated FormattedText formatted_reading_hint = 8;
+  reserved 5, 6, 7, 8, 9;
 
-  repeated VisuallySimilarKanji visually_similar_kanji = 9;
+  optional string visually_similar_kanji = 10;
 }
 
 message Vocabulary {
   optional string meaning_explanation = 1;
   optional string reading_explanation = 2;
 
-  repeated FormattedText formatted_meaning_explanation = 6;
-  repeated FormattedText formatted_reading_explanation = 7;
+  reserved 6, 7;
 
   message Sentence {
     optional string japanese = 1;
@@ -94,6 +87,7 @@ message Vocabulary {
   repeated Sentence sentences = 3;
 
   enum PartOfSpeech {
+    UNKNOWN = 0;
     NOUN = 1;
     NUMERAL = 2;
     INTRANSITIVE_VERB = 3;
@@ -137,6 +131,7 @@ message Subject {
   optional Vocabulary vocabulary = 11;
 
   enum Type {
+    UNKNOWN = 0;
     RADICAL = 1;
     KANJI = 2;
     VOCABULARY = 3;
@@ -151,24 +146,25 @@ message Assignment {
   optional Subject.Type subject_type = 4;
   optional int32 available_at = 5;
   optional int32 started_at = 6;
-  optional int32 srs_stage = 7;
+  optional int32 srs_stage_number = 7;
   optional int32 passed_at = 8;
 }
 
 message Progress {
-  reserved 1;
-  reserved 2;
+  reserved 1, 2;
   optional bool meaning_wrong = 3;
   optional bool reading_wrong = 4;
   optional bool is_lesson = 5;
   optional Assignment assignment = 6;
   optional int32 created_at = 7;
+  optional int32 meaning_wrong_count = 8;
+  optional int32 reading_wrong_count = 9;
 }
 
 message StudyMaterials {
   optional int32 id = 1;
   optional int32 subject_id = 2;
-  optional string subject_type = 6;
+  reserved 6;
   optional string meaning_note = 3;
   optional string reading_note = 4;
   repeated string meaning_synonyms = 5;
@@ -191,6 +187,7 @@ message SubjectOverrides {
 
 message FormattedText {
   enum Format {
+    UNKNOWN = 0;
     RADICAL = 1;
     KANJI = 2;
     JAPANESE = 3;
